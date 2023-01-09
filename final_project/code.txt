@@ -1,0 +1,1265 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: dan dean
+// 
+// Create Date: 10/25/2022 09:56:16 AM
+// Design Name: 
+// Module Name: testbench
+// Project Name: lab3
+// Target Devices: 
+// Tool Versions: 
+// Description: testing the bench
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module testbench();
+
+reg clk;
+initial  clk <= 0;
+                                    
+//wires for fetch & decode
+wire [31:0] pc, dinstOut, eqa, eqb,eimm32;
+wire ewreg, em2reg, ewmem, ealuimm;
+wire [3:0] ealuc;
+wire [4:0] edestReg;
+
+//wires for mem
+
+wire mwreg, mm2reg, mwmem;
+wire [4:0] mdestReg;
+wire [31:0] mr, mqb;
+    
+    
+// for write
+wire wwreg,wm2reg;
+wire[4:0] wdestReg;
+wire[31:0] wr, wdo, wbData;
+
+
+// fowarding 
+wire [1:0] fwda, fwdb;
+
+
+datapath dp(clk, 
+            pc, dinstOut, ewreg, em2reg, ewmem, ealuc, ealuimm, edestReg, eqa, eqb, eimm32,
+            mwreg,mm2reg,mwmem,mdestReg,mr,mqb,
+            wwreg,wm2reg,wdestReg,wr,wdo,wbData,
+            fwda,fwdb);
+
+always begin 
+
+    #5;
+    
+    clk = ~clk;
+ end
+
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 12/15/2022 10:05:51 PM
+// Design Name: 
+// Module Name: Top
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module Top(
+    input clock,
+    output [31:0] eqa,
+    output [31:0] eqb,
+    output [31:0] mr
+    );
+    
+    datapath dp(.clock(clock), .eqa(eqa), .eqb(eqb), .mr(mr)); 
+    
+    
+endmodule
+
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 11/04/2022 04:59:52 PM
+// Design Name: 
+// Module Name: datapath
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: we connect all of the modules that we have created with wires
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module datapath(
+    input clock,
+    output  wire [31:0] pc,
+    output  wire [31:0] dinstOut,
+    output  wire ewreg,
+    output  wire em2reg,
+    output  wire ewmem,
+    output  wire [3:0] ealuc,
+    output  wire ealuimm,
+    output  wire [4:0] edestReg,
+    output  wire [31:0] eqa,
+    output  wire [31:0] eqb,
+    output  wire [31:0] eimm32,
+    
+    output  wire mwreg,
+    output  wire mm2reg,
+    output  wire mwmem,
+    output  wire [4:0] mdestReg,
+    output  wire [31:0] mr,
+    output  wire [31:0] mqb,
+    
+    output wire wwreg,
+    output wire wm2reg,
+    output wire [4:0] wdestReg,
+    output wire [31:0] wr,
+    output wire [31:0] wdo,
+    output wire [31:0] wbData,
+    
+    output wire [1:0] fwda, fwdb
+    );
+    
+    wire [31:0] instOut;
+    wire [31:0] next_pc;
+    wire [5:0] op, func;
+    wire wpcir;
+    
+    program_counter_register datapath_pc(next_pc,clock,pc); 
+   
+    //Start of IF
+    pc_adder d_pca(pc,next_pc);
+    instruction_memory d_im(pc, instOut); 
+    ifid_pipeline_register d_ifid(wpcir,instOut,clock,dinstOut); // holds everything in this regesister for later
+    
+    //Start of ID
+    wire regrt;
+    wire [4:0]  ret, res;
+    wire wreg,m2reg,wmeme,aluimm;
+    wire [4:0] destReg;
+    wire [3:0] aluc;
+    wire [15:0] imm = dinstOut[15:0];
+    wire [31:0] qa,qb,imm32;
+    wire [4:0] rd = dinstOut[15:11];
+    wire [4:0] rs = dinstOut[25:21];
+    wire [4:0] rt = dinstOut[20:16];
+    
+    wire [31:0] b, r;
+    
+    wire [31:0] mdo;
+    
+    wire [31:0] pfqa, pfqb;
+
+    
+    control_unit d_control_unit(dinstOut[31:26],dinstOut[5:0],
+                                rs, rt, 
+                                mdestReg, mm2Reg, mwreg, 
+                                edestReg, em2reg, ewreg,
+                                wreg,m2reg,wmem,aluc,aluimm,regrt,wpcir,
+                                fwdb, fwda);                                    //changed in final
+                                
+                                
+    
+    
+                            
+    regrt_mux d_regrt_mux(rt,rd,regrt,destReg);
+    register_file d_register_file(rs,rt,wdestReg,wbData,wwreg,clock, qa,qb);    //changed in lab 5   
+    
+    
+    
+    
+    
+    immediate_extender d_immediate_extender(imm,imm32);
+    
+    
+    
+    idexe_pipeline_register d_id_exe(wreg,m2reg,wmem,aluc,aluimm,destReg,pfqa,pfqb,imm32,clock,ewreg,em2reg,ewmem,ealuc,ealuimm,edestReg,eqa,eqb,eimm32);
+    
+    
+    //Start of EXE
+    
+    
+    
+    alu_mux                  alum(eqb,eimm32,ealuimm,b);
+    alu                      ealu(eqa,b,ealuc,r);
+    EXEMEM_pipeline_register exemem(ewreg,em2reg,ewmem,edestReg,r,eqb,clock,mwreg,mm2reg,mwmem,mdestReg,mr,mqb);
+    
+    
+    
+    //Start of MEM
+    
+    data_memory              dm(mr, mqb, mwmem, clock, mdo);
+    MEMWB_pipeline_register  memwb(mwreg,mm2reg,mdestReg,mr,mdo,clock,wwreg,wm2reg,wdestReg,wr,wdo);
+    
+    
+    //Start of WB
+    
+    wb_mux wbmux(wr,wdo,wm2reg,wbData);
+    
+    a_mux amux(fwda,qa,r,mr,mdo,pfqa);
+    b_mux bmux(fwdb,qb,r,mr,mdo,pfqb);
+    
+    
+endmodule
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 11/09/2022 01:27:00 PM
+// Design Name: 
+// Module Name: alu
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module alu(
+    input [31:0] eqa,
+    input [31:0] b,
+    input [3:0] ealuc,
+    output reg [31:0] r
+    );
+    parameter AND = 4'b0000,
+              OR =  4'b0001,   
+              ADD = 4'b0010,   
+              SUB = 4'b0110,   
+              SLT = 4'b0111,   
+              NOR = 4'b1100,
+              XOR = 4'b1111;   
+  always @(*) begin
+    case(ealuc)
+        AND:  r<= eqa & b;     
+        OR:   r<= eqa | b;
+        ADD:  r<= eqa + b;      
+        SUB:  r<= eqa - b;   
+        XOR:  r<= eqa ^ b; //added in final
+         endcase
+      end
+endmodule
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10/25/2022 10:39:09 AM
+// Design Name: 
+// Module Name: pc
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+//  pc is set to value of nextPc
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module program_counter_register(
+    input [31:0] nextPc,
+    input clock,
+    output reg [31:0] pc
+    );
+    initial pc <= 100; // This is where we set the PC to be 100 initially
+    always @ (posedge clock) begin
+        pc <= nextPc;
+    end
+endmodule
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10/25/2022 09:58:56 AM
+// Design Name: 
+// Module Name: pc_adder
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+//              nextPc is set to pc + 4
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module pc_adder(
+    input [31:0] pc,
+    output reg [31:0] nextPc
+    );
+    
+    always @(*) begin
+        nextPc <= pc + 4;
+    end
+endmodule
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10/25/2022 10:39:09 AM
+// Design Name: 
+// Module Name: instruction_memory
+// Project Name: final 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// We keep the 2d memory array in here, which we index with the pc
+// This is where we are keeping the instructions that are to be executed
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module instruction_memory(
+    input [31:0] pc,
+    output reg [31:0] instOut
+    );
+    reg [31:0] memory [0:63];
+    initial begin //throws error outside of initial begin
+        // final project instructions
+        memory[25] <= 32'h00221820; //add   $3 $1 $2
+        memory[26] <= 32'h01232022; //sub   $4 $9 $3
+        memory[27] <= 32'h00692825; //or    $5 $3 $9
+        memory[28] <= 32'h00693026; //xor   $6 $3 $9
+        memory[29] <= 32'h00693824; //and   $7 $3 $9
+    end
+    always @(*)begin
+        instOut <= memory[pc[7:2]]; //we only need 6 bits to address 63:0
+    end
+endmodule
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10/25/2022 10:00:31 AM
+// Design Name: 
+// Module Name: ifid_pipeline_register
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: This acts as a checkpoint after we have grabbed the instruction.
+//              dinstOut is set to instOut
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module ifid_pipeline_register(
+    input wpcir,
+    input [31:0] instOut,
+    input clock,
+    output reg[31:0] dinstOut
+    );
+    
+    always @ (posedge clock) begin
+        dinstOut <= instOut;
+    end
+endmodule
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10/25/2022 10:03:14 AM
+// Design Name: 
+// Module Name: control_unit
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: given the op and func, we calculate which wires need to be high vs low 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module control_unit(
+    input [5:0] op,
+    input [5:0] func,
+    
+    //final inputs
+    input [4:0] rs,
+    input [4:0] rt,
+    
+    input [4:0] mdestReg,    
+    input  mm2reg,
+    input  mwreg,
+    
+    input [4:0] edestReg,
+    input em2reg,
+    input ewreg,
+    
+    output reg wreg, //writing to register?
+    output reg m2reg, //are we writing from mem into a register?
+    output reg wmem, //are we writing to memory
+    output reg [3:0] aluc, // ALU code
+    output reg aluimm, //means we are going to use the immediate
+    output reg regrt, //address in rt rahter than rd
+    
+    output reg wpcir, 
+    //forwarding 
+    output reg [1:0] fwdb,
+    output reg [1:0] fwda
+    );
+    parameter LW    = 6'b100011,
+              SW    = 6'b101011,
+              BEQ   = 6'b000100,
+              RTYPE = 6'b000000,
+              ADD   = 6'b100000,
+              SUB   = 6'b100010,
+              OR    = 6'b100101,
+              XOR   = 6'b100110,
+              AND   = 6'b100100,
+              SLL   = 6'b000000, //This may cause a problem with RTYPE
+              SRL   = 6'b000010,
+              SRA   = 6'b000011,
+              JR    = 6'b001000,
+              T  = 1'b1,
+              F  = 1'b0 ; //from ZYBOOK 4.14
+    always @ (*) begin
+        wpcir <=1;
+
+    	case (rs)
+        	edestReg: begin
+        	   if (ewreg && em2reg)  fwda <= 3;
+            	else if (edestReg)   fwda <= 1;
+            	else                 fwda <= 0; 
+        	end
+        	mdestReg: begin
+        	   if(mwreg && mm2reg)   fwda <= 3;
+            	else if (edestReg)   fwda <= 2;
+            	else                 fwda <= 0; 
+        	end
+        	default:                 fwda <= 0;
+    	endcase
+    	case (rt)
+        	edestReg: begin
+        	   if (ewreg && em2reg)  fwdb <= 3;
+            	else if (edestReg)   fwdb <= 1;
+            	else                 fwdb <= 0; 
+        	end
+        	mdestReg: begin
+        	   if(mwreg && mm2reg)   fwdb <= 3;
+            	else if (edestReg)   fwdb <= 2;
+            	else                 fwdb <= 0; 
+        	end
+        	default:                 fwdb <= 0;
+    	endcase
+     
+        case(op)
+            RTYPE:
+                begin
+                //This is where we will put the R type instructions
+                    case(func)
+                        ADD: begin
+                        //add logic
+                            wreg   <= T;
+                            m2reg  <= F;
+                            wmem   <= F;
+                            aluc   <= 4'b0010; // from 4.7.12 this is telling the ALU to add
+                            aluimm <= F;       // changed in lab 5
+                            regrt  <= F;       // changed in lab 5
+                        end
+                        SUB: begin
+                        //sub logic
+                            wreg   <= T;
+                            m2reg  <= F;
+                            wmem   <= F;
+                            aluc   <= 4'b0110; // sub
+                            aluimm <= F;       // changed in lab5    
+                            regrt  <= F;       // changed in lab 5
+                        end
+                        OR: begin           //added in final
+                            wreg   <= T;
+                            m2reg  <= F;
+                            wmem   <= F;
+                            aluc   <= 4'b0001; // or
+                            aluimm <= F;          
+                            regrt  <= F;                         
+                        end
+                        XOR: begin          //added in final
+                            wreg   <= T;
+                            m2reg  <= F;
+                            wmem   <= F;
+                            aluc   <= 4'b1111; // xor
+                            aluimm <= F;          
+                            regrt  <= F;
+                        end
+                        AND: begin          //added in final
+                            wreg   <= T;
+                            m2reg  <= F;
+                            wmem   <= F;
+                            aluc   <= 4'b0000; // and
+                            aluimm <= F;          
+                            regrt  <= F;
+                        end
+                    endcase
+                end
+            LW: // this is lw
+            begin
+                wreg   <= T;
+                m2reg  <= T;
+                wmem   <= F;
+                aluc   <= 4'b0010; // from 4.7.12 this is telling the ALU to add
+                aluimm <= T;
+                regrt  <= T;
+            end
+        endcase
+    
+
+    end
+endmodule
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10/25/2022 10:04:21 AM
+// Design Name: 
+// Module Name: regrt_mux
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+//          mux that decides destReg
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module regrt_mux(
+    input [4:0] rt,
+    input [4:0] rd,
+    input regrt,
+    output reg [4:0] destReg
+    );
+
+    always @(*)begin
+    case(regrt)
+        
+        1'b0:begin 
+            destReg <= rd;
+        end
+        1'b1:begin
+            destReg <= rt;
+        end
+    endcase
+    
+    end
+endmodule
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10/25/2022 10:06:11 AM
+// Design Name: 
+// Module Name: register_file
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+//     This is where the registers are kept, we index them with rs & rt
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module register_file(
+    input [4:0] rs,
+    input [4:0] rt,
+    input [4:0] wdestReg,    //added in lab5
+    input [31:0] wbData,     //added in lab5
+    input wwreg,             //added in lab5
+    input clock,             //changed in final to be a single bit
+    output reg [31:0] qa,
+    output reg [31:0] qb
+    );
+    reg [31:0] registers [0:31];
+    reg [4:0] i;
+    initial begin
+        for (i = 0; i < 32; i = i +1) begin 
+            registers[i] <= 32'h00000000;
+        end
+        registers[32'h00000000] <= 32'hA00000AA ;
+        registers[32'h00000001] <= 32'hA00000AA ;
+        registers[32'h00000002] <= 32'h10000011 ;
+        registers[32'h00000003] <= 32'h20000022 ;
+        registers[32'h00000004] <= 32'h30000033 ;
+        registers[32'h00000005] <= 32'h40000044 ;
+        registers[32'h00000006] <= 32'h50000055 ;
+        registers[32'h00000007] <= 32'h60000066 ;
+        registers[32'h00000008] <= 32'h70000077 ;
+        registers[32'h00000009] <= 32'h80000088 ;
+        registers[32'h0000000A] <= 32'h90000099 ;
+    end
+    always @(negedge clock) begin 
+        if (wwreg) registers[wdestReg] <= wbData; // set data
+    end
+    always  @(*) begin
+        qa <= registers[rs]; 
+        qb <= registers[rt];
+    end
+endmodule
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10/25/2022 10:07:06 AM
+// Design Name: 
+// Module Name: immediate_extender
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: We extend a 16bit->32bit while maintaining sign
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module immediate_extender(
+    input [15:0] imm,
+    output reg [31:0] imm32
+    );
+    always @(*) begin 
+        imm32 <= {{16{imm[15]}},imm};
+    end
+    
+endmodule
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: dan dean
+// 
+// Create Date: 10/25/2022 10:12:51 AM
+// Design Name: 
+// Module Name: idexe_pipeline_register
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: This holds all the wires from the datapath that comes before
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module idexe_pipeline_register(
+    input wreg,
+    input m2reg,
+    input wmem,
+    input [3:0] aluc,
+    input aluimm,
+    input [4:0] destReg,
+    input [31:0] qa,
+    input [31:0] qb,
+    input [31:0] imm32,
+    input clock,
+    output reg ewreg,
+    output reg em2reg,
+    output reg ewmem,
+    output reg [3:0] ealuc,
+    output reg ealuimm,
+    output reg [4:0] edestReg,
+    output reg [31:0] eqa,
+    output reg [31:0] eqb,
+    output reg [31:0] eimm32
+    );
+    always @(posedge clock) begin
+        ewreg  <= wreg;
+        em2reg <= m2reg;
+        ewmem  <= wmem;
+        ealuc  <= aluc;
+        ealuimm   <= aluimm;
+        edestReg <= destReg;
+        eqa <= qa;
+        eqb <= qb;
+        eimm32 = imm32;
+    end
+    
+endmodule
+
+
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 11/09/2022 01:25:25 PM
+// Design Name: 
+// Module Name: alu_mux
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+//  The ALU where we will add, subtract, and, or, & xor
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module alu_mux(
+    input [31:0] eqb,
+    input [31:0] eimm32,
+    input ealuimm,
+    output reg [31:0] b
+    );
+    
+    always @(*) begin
+        case(ealuimm)
+            1'b0: b <=eqb;
+            0'b1: b <=eimm32;
+        endcase
+    end
+endmodule
+
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 11/09/2022 02:04:43 PM
+// Design Name: 
+// Module Name: EXEMEM_pipeline_register
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module EXEMEM_pipeline_register(
+    input ewreg,
+    input em2reg,
+    input ewmem,
+    input [4:0] edestReg,
+    input [31:0] r,
+    input [31:0] eqb,
+    input clock,
+    output reg mwreg,
+    output reg mm2reg,
+    output reg mwmem,
+    output reg [4:0] mdestReg,
+    output reg [31:0] mr,
+    output reg [31:0] mqb
+    );
+    always @(posedge clock) begin
+        mwreg       <= ewreg; 
+        mm2reg      <= em2reg;
+        mwmem       <= ewmem;
+        mdestReg    <= edestReg;
+        mr          <= r;
+        mqb         <= eqb;
+    end
+    
+    
+endmodule
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 11/09/2022 02:06:19 PM
+// Design Name: 
+// Module Name: data_memory
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module data_memory(
+    input [31:0] mr,  //address in mem
+    input [31:0] mqb, //the actual data to write
+    input mwmem,      //write enable
+    input clock,
+    output reg [31:0] mdo //data read from out data mem @ mr
+    );
+    //if mwmem -> memory[mr] = mqb
+    reg [31:0] data [0:63];
+    initial begin
+    data[32'h00000000] <= 32'hA00000AA ;
+    data[32'h00000001] <= 32'h10000011 ;
+    data[32'h00000002] <= 32'h20000022 ;
+    data[32'h00000003] <= 32'h30000033 ;
+    data[32'h00000004] <= 32'h40000044 ;
+    data[32'h00000005] <= 32'h50000055 ;
+    data[32'h00000006] <= 32'h60000066 ;
+    data[32'h00000007] <= 32'h70000077 ;
+    data[32'h00000008] <= 32'h80000088 ;
+    data[32'h00000009] <= 32'h90000099 ;
+    end
+    //for reading
+    always @(*) begin
+        mdo <= data[mr>>2]; // we need to shift right by two so that we access the correct data address
+    end
+    
+    //for writing
+    always @ (negedge clock) begin
+        if (mwmem)begin
+         data[mr>>2] <= mqb; 
+        end
+    end
+endmodule
+
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 11/10/2022 11:11:12 AM
+// Design Name: 
+// Module Name: MEMWB_pipeline_register
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module MEMWB_pipeline_register(
+    input mwreg,
+    input mm2reg,
+    input [4:0] mdestReg,
+    input [31:0] mr,
+    input [31:0] mdo,
+    input clock,
+    output reg wwreg,
+    output reg wm2reg,
+    output reg [4:0] wdestReg,
+    output reg [31:0] wr,
+    output reg[31:0] wdo
+    );
+    always @(posedge clock) begin
+        wwreg    <= mwreg;
+        wm2reg   <= mm2reg;
+        wdestReg <= mdestReg;
+        wr       <= mr;
+        wdo      <= mdo;
+    end
+    
+    
+endmodule
+
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 12/15/2022 12:55:40 PM
+// Design Name: 
+// Module Name: wb_mux
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module wb_mux(
+    input [31:0] wr,
+    input [31:0] wdo,
+    input wm2reg,
+    output reg [31:0] wbData
+    );
+    always @(*) begin
+        case(wm2reg) 
+            1'b0: wbData <= wr;
+            1'b1: wbData <= wdo; 
+        endcase
+    end
+    
+endmodule
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 12/14/2022 06:03:01 PM
+// Design Name: 
+// Module Name: a_mux
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module a_mux(
+    input [1:0] fwda,
+    input [31:0] qa,
+    input [31:0] er,
+    input [31:0] mr,
+    input [31:0] do,
+    output reg [31:0] a
+    );
+    always @(*) begin 
+        case(fwda) 
+            2'b00: a <= qa;
+            2'b01: a <= er;
+            2'b10: a <= mr;
+            2'b11: a <= do;
+        endcase
+    end
+endmodule
+
+
+
+
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 12/14/2022 06:03:01 PM
+// Design Name: 
+// Module Name: b_mux
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module b_mux(
+    input [1:0] fwdb,
+    input [31:0] qb,
+    input [31:0] er,
+    input [31:0] mr,
+    input [31:0] do,
+    output reg [31:0] b
+    );
+    always @(*) begin 
+        case(fwdb) 
+            2'b00: b <= qb;
+            2'b01: b <= er;
+            2'b10: b <= mr;
+            2'b11: b <= do;
+        endcase
+    end
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
